@@ -3,9 +3,10 @@
 import { ID, Query } from "node-appwrite";
 import { createAdminClient } from "../appwrite";
 import { appWriteConfig } from "../appwrite/config";
-import { parseStringify } from "../utils"; // Ensure this imports the correct function
+import { parseStringify } from "../utils";
+import { cookies } from "next/headers";
 
-// Function to fetch a user by email
+// Fetch user by email
 const getUserByEmail = async (email: string) => {
   const { databases } = await createAdminClient();
 
@@ -18,26 +19,20 @@ const getUserByEmail = async (email: string) => {
   return result.total > 0 ? result.documents[0] : null;
 };
 
-// Unified error handler
-const handleError = (error: unknown, message: string) => {
-  console.error(message, error);
-  throw new Error(message);
-};
-
-// Function to send an email OTP
-export const sendEmailOTP = async ({ email }: { email: string }) => {
+// Send email OTP
+const sendEmailOTP = async ({ email }: { email: string }) => {
   const { account } = await createAdminClient();
 
   try {
     const session = await account.createEmailToken(ID.unique(), email);
-
     return session.userId;
   } catch (error) {
-    handleError(error, "Failed to send email OTP");
+    console.error("Failed to send email OTP", error);
+    throw new Error("Failed to send OTP.");
   }
 };
 
-// Function to create a user account
+// Create a new user account
 const createAccount = async ({
   fullName,
   email,
@@ -46,27 +41,57 @@ const createAccount = async ({
   email: string;
 }) => {
   const existingUser = await getUserByEmail(email);
-
   const accountId = await sendEmailOTP({ email });
-  if (!accountId) throw new Error("Failed to send an OTP");
 
   if (!existingUser) {
     const { databases } = await createAdminClient();
 
-    await databases.createDocument(
-      appWriteConfig.databaseId,
-      appWriteConfig.usersCollectionId,
-      ID.unique(),
-      {
-        fullName,
-        email,
-        avatar: "/assets/images/avatar.png",
-        accountId,
-      }
-    );
+    try {
+      await databases.createDocument(
+        appWriteConfig.databaseId,
+        appWriteConfig.usersCollectionId,
+        ID.unique(),
+        {
+          fullName,
+          email,
+          avarar: "/assets/images/avatar.png", // ? it supposed to be avatar 😅
+          accountId,
+        }
+      );
+    } catch (error) {
+      console.error("Failed to create user document", error);
+      throw new Error("Could not create user.");
+    }
   }
 
   return parseStringify({ accountId });
 };
 
-export { getUserByEmail, createAccount };
+// Verify secret token
+const verifySecret = async ({
+  accountId,
+  password,
+}: {
+  accountId: string;
+  password: string;
+}) => {
+  const { account } = await createAdminClient();
+
+  try {
+    const session = await account.createSession(accountId, password);
+
+    (await cookies()).set("appwrite-session", session.secret, {
+      path: "/",
+      httpOnly: true,
+      sameSite: "strict",
+      secure: true,
+    });
+
+    return parseStringify({ sessionId: session.$id });
+  } catch (error) {
+    console.error("Failed to verify secret", error);
+    throw new Error("Failed to verify secret.");
+  }
+};
+
+export { sendEmailOTP, getUserByEmail, createAccount, verifySecret };
