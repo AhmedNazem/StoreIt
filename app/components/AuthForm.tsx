@@ -15,13 +15,14 @@ import { Input } from "@/components/ui/input";
 import React, { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { createAccount } from "@/lib/actions/user.action";
 
 type FormType = "sign-in" | "sign-up";
 
 const AuthForm = ({ type }: { type: FormType }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
-
+  const [accountId, setAccountId] = useState(null);
   const formSchema = z.object({
     fullName: z.string().min(2).max(50),
     email: z.string().email("Invalid email"),
@@ -37,10 +38,18 @@ const AuthForm = ({ type }: { type: FormType }) => {
   });
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
+    setIsLoading(true);
+    setErrorMessage("");
     try {
-      console.log(values);
-    } catch (error) {
-      console.error("Submission failed:", error);
+      const user = await createAccount({
+        fullName: values.fullName || "",
+        email: values.email,
+      });
+      setAccountId(user.accountId);
+    } catch {
+      setErrorMessage("Failed to create account Please try again later");
+    } finally {
+      setIsLoading(false);
     }
   };
 
