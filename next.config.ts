@@ -13,6 +13,10 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: "https",
+        hostname: "www.w3schools.com",
+      },
+      {
+        protocol: "https",
         hostname: "cloud.appwrite.io",
       },
     ],
